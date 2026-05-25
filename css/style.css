@@ -15,7 +15,7 @@
 /* Switcking between light and dark themes */
 
 :root {
-    --body-bg-image: url("../assets/clouds.avif");
+    --body-bg-image: url("../assets/icons/clouds.avif");
     --page-overlay-bg: #DDEFFF73;
     --text-primary: #000000;
     --text-secondary: #1D1D1D;
