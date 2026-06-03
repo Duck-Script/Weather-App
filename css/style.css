@@ -407,8 +407,8 @@ body::before {
 }
 
 #current-weather-icon {
-    width: 16rem;
-    height: 16rem;
+    width: 25rem;
+    height: 25rem;
 }
 
 /* Weather details */
