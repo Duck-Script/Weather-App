@@ -133,6 +133,18 @@ const COUNTRY_CODES = {
     "United States": "US"
 };
 
+// Default country for well-known cities — only used when user doesn't specify a country.
+const CITY_DEFAULT_COUNTRIES = {
+    "Warsaw": "Poland",
+    "Kyiv": "Ukraine",
+    "Lviv": "Ukraine",
+    "Krakow": "Poland",
+    "Rzeszow": "Poland",
+    "Munich": "Germany",
+    "Vienna": "Austria",
+    "Crimea": "Ukraine"
+};
+
 // Small saved state, so refresh feels familiar.
 let currentLanguage = localStorage.getItem("weatherAppLanguage") || "en";
 let lastLocation = null;
@@ -533,7 +545,14 @@ async function searchWeatherByCity(city) {
 async function getCityLocation(city) {
     const parsedLocation = parseLocationInput(city);
     const searchQuery = getCitySearchQuery(parsedLocation.cityQuery);
-    const countryQuery = normalizeCountryQuery(parsedLocation.countryQuery);
+
+    // Explicit country typed by user always wins; default only fills the gap.
+    let countryQuery = normalizeCountryQuery(parsedLocation.countryQuery);
+
+    if (!countryQuery) {
+        countryQuery = getDefaultCountryForCity(searchQuery);
+    }
+
     const url = buildGeocodingUrl(searchQuery, countryQuery, 10);
 
     try {
@@ -638,7 +657,7 @@ function showLoading() {
     currentWeatherState = "loading";
     searchButton.disabled = true;
     setWeatherBackground();
-    setTimeOfDayBackground();
+    setUserTimeBackground();
 
     cityNameElement.textContent = getText().loadingCity;
     dateElement.textContent = "";
@@ -659,7 +678,7 @@ function showError(message) {
     currentCity = null;
     searchButton.disabled = false;
     setWeatherBackground();
-    setTimeOfDayBackground();
+    setUserTimeBackground();
 
     cityNameElement.textContent = getText().weatherUnavailable;
     dateElement.textContent = "";
@@ -701,7 +720,10 @@ function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
         month: "long",
         day: "numeric"
     });
+
+    // Weather card shows the searched city's local time.
     localTimeElement.textContent = getLocalTimeText(weather.time);
+
     temperatureElement.textContent = `${Math.round(weather.temperature_2m)}°C`;
     descriptionElement.textContent = weatherDescription;
     feelsLikeElement.textContent = `${Math.round(weather.apparent_temperature)}°C`;
@@ -709,10 +731,16 @@ function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
     windSpeedElement.textContent = `${Math.round(weather.wind_speed_10m)} km/h`;
     pressureElement.textContent = `${Math.round(weather.pressure_msl)} hPa`;
 
+    // Weather icon uses the searched city's is_day from API.
     weatherIconElement.src = getWeatherIcon(weather.weather_code, isNight, weather.wind_speed_10m);
     weatherIconElement.alt = weatherDescription;
-    setWeatherBackground(weather.weather_code, isNight, weather.wind_speed_10m);
-    setTimeOfDayBackground(weather.time);
+
+    // Decorative background mood follows the user's browser/local time.
+    const isUserNight = isUserNightTime();
+
+    setWeatherBackground(weather.weather_code, isUserNight, weather.wind_speed_10m);
+    setUserTimeBackground();
+
     renderForecast(dailyForecast);
     updateFavoriteButton();
 }
@@ -757,6 +785,11 @@ function getCountryCode(country) {
     return COUNTRY_CODES[country] || "";
 }
 
+// Returns a default country for a known city when the user didn't type one.
+function getDefaultCountryForCity(cityQuery) {
+    return CITY_DEFAULT_COUNTRIES[cityQuery] || "";
+}
+
 function buildGeocodingUrl(cityQuery, countryQuery, count = 10) {
     const language = getGeocodingLanguage();
     const countryCode = getCountryCode(countryQuery);
@@ -774,7 +807,7 @@ function getBestCityMatch(results, cityQuery, countryQuery = "") {
         throw new Error(getText().errors.cityNotFound);
     }
 
-    const normalizedCityQuery = normalizeCityInput(cityQuery).toLowerCase();
+        const normalizedCityQuery = normalizeCityInput(cityQuery).toLowerCase();
     const normalizedCountryQuery = normalizeCountryQuery(countryQuery);
     const countryCode = getCountryCode(normalizedCountryQuery);
     let filteredResults = results;
@@ -784,6 +817,7 @@ function getBestCityMatch(results, cityQuery, countryQuery = "") {
             return city.country === normalizedCountryQuery || city.country_code === countryCode;
         });
 
+        // If the country filter yields nothing, don't silently fall back to another country.
         if (filteredResults.length === 0) {
             throw new Error(getText().errors.cityNotFound);
         }
@@ -943,20 +977,37 @@ function setWeatherBackground(weatherCode = null, isNight = false, windSpeed = 0
     document.body.classList.add(backgroundClass);
 }
 
-function setTimeOfDayBackground(weatherTime = null) {
+// Applies a time-of-day class based on the user's local browser time.
+function setUserTimeBackground() {
+    setTimeOfDayBackground(new Date());
+}
+
+// Returns true if the user's local time is considered night (21:00–04:59).
+function isUserNightTime() {
+    const hour = new Date().getHours();
+
+    return hour >= 21 || hour < 5;
+}
+
+// Accepts a Date object, a date/time string, or undefined (falls back to now).
+function setTimeOfDayBackground(timeValue) {
     document.body.classList.remove(...TIME_BACKGROUND_CLASSES);
 
-    if (!weatherTime) {
-        return;
+    let date;
+
+    if (timeValue instanceof Date) {
+        date = timeValue;
+    } else if (timeValue) {
+        date = new Date(timeValue);
+    } else {
+        date = new Date();
     }
 
-    const weatherDate = new Date(weatherTime);
-
-    if (Number.isNaN(weatherDate.getTime())) {
-        return;
+    if (Number.isNaN(date.getTime())) {
+        date = new Date();
     }
 
-    const hour = weatherDate.getHours();
+    const hour = date.getHours();
     let timeClass = "time-day";
 
     if (hour >= 5 && hour < 10) {
@@ -1510,7 +1561,14 @@ async function fetchCitySuggestions(city) {
 
     const parsedLocation = parseLocationInput(normalizedCity);
     const searchQuery = getCitySearchQuery(parsedLocation.cityQuery);
-    const countryQuery = normalizeCountryQuery(parsedLocation.countryQuery);
+
+    // Same country bias logic as getCityLocation — explicit country wins, default fills the gap.
+    let countryQuery = normalizeCountryQuery(parsedLocation.countryQuery);
+
+    if (!countryQuery) {
+        countryQuery = getDefaultCountryForCity(searchQuery);
+    }
+
     const language = getGeocodingLanguage();
     const query = `${language}:${searchQuery.toLowerCase()}:${countryQuery.toLowerCase()}`;
 
@@ -1609,7 +1667,7 @@ function setDefaultWeatherText() {
     currentCity = null;
     searchButton.disabled = false;
     setWeatherBackground();
-    setTimeOfDayBackground();
+    setUserTimeBackground();
     cityNameElement.textContent = text.defaultCity;
     dateElement.textContent = text.defaultDate;
     localTimeElement.textContent = getLocalTimeText();
