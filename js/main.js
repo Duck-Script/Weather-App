@@ -57,7 +57,7 @@ let currentCity = null;
 let suggestionsTimeout = null;
 let weatherRequestId = 0;
 
-// All UI text lives here, because the app has three simple languages.
+// UI
 const translations = {
     en: {
         htmlLang: "en",
