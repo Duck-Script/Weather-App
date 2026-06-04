@@ -807,7 +807,7 @@ function getBestCityMatch(results, cityQuery, countryQuery = "") {
         throw new Error(getText().errors.cityNotFound);
     }
 
-        const normalizedCityQuery = normalizeCityInput(cityQuery).toLowerCase();
+    const normalizedCityQuery = normalizeCityInput(cityQuery).toLowerCase();
     const normalizedCountryQuery = normalizeCountryQuery(countryQuery);
     const countryCode = getCountryCode(normalizedCountryQuery);
     let filteredResults = results;
@@ -1209,9 +1209,6 @@ function getCurrentPosition() {
     });
 }
 
-async function loadLastCityWeather() {
-    return false;
-}
 
 function applyLanguage() {
     const text = getText();
@@ -1431,14 +1428,14 @@ function renderFavorites() {
         cityButton.type = "button";
         cityButton.textContent = getCityLabel(city);
         cityButton.addEventListener("click", () => {
-            searchWeatherByCity(city.name);
+            searchWeatherByCity(getCityLabel(city));
         });
 
         removeButton.className = "city-list__remove";
         removeButton.type = "button";
         removeButton.textContent = "×";
         removeButton.addEventListener("click", () => {
-            removeFavoriteCity(city.name);
+            removeFavoriteCity(city);
         });
 
         cityItem.append(cityButton, removeButton);
@@ -1452,7 +1449,9 @@ function addFavoriteCity() {
     }
 
     const favorites = getFavorites();
-    const isAlreadyFavorite = favorites.some((city) => city.name === currentCity.name);
+    const isAlreadyFavorite = favorites.some((city) => {
+        return city.name === currentCity.name && city.country === currentCity.country;
+    });
 
     if (isAlreadyFavorite) {
         return;
@@ -1468,8 +1467,10 @@ function addFavoriteCity() {
     updateFavoriteButton();
 }
 
-function removeFavoriteCity(cityName) {
-    const favorites = getFavorites().filter((city) => city.name !== cityName);
+function removeFavoriteCity(city) {
+    const favorites = getFavorites().filter((fav) => {
+        return fav.name !== city.name || fav.country !== city.country;
+    });
 
     saveFavorites(favorites);
     renderFavorites();
@@ -1494,7 +1495,9 @@ function addRecentSearch(city) {
     }
 
     // Keep the newest search on top.
-    const recentSearches = getRecentSearches().filter((recentCity) => recentCity.name !== city.name);
+    const recentSearches = getRecentSearches().filter((recentCity) => {
+        return recentCity.name !== city.name || recentCity.country !== city.country;
+    });
 
     recentSearches.unshift(city);
     saveRecentSearches(recentSearches.slice(0, 5));
@@ -1518,7 +1521,7 @@ function renderRecentSearches() {
         cityButton.type = "button";
         cityButton.textContent = getCityLabel(city);
         cityButton.addEventListener("click", () => {
-            searchWeatherByCity(city.name);
+            searchWeatherByCity(getCityLabel(city));
         });
 
         cityItem.append(cityButton);
@@ -1579,7 +1582,6 @@ async function fetchCitySuggestions(city) {
 
     if (isApiOnCooldown()) {
         hideSuggestions();
-        showError(getText().errors.tooManyRequests);
         return;
     }
 
@@ -1596,7 +1598,6 @@ async function fetchCitySuggestions(city) {
         if (response.status === 429) {
             startApiCooldown();
             hideSuggestions();
-            showError(getText().errors.tooManyRequests);
             return;
         }
 
