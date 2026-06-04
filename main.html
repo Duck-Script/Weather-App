@@ -18,11 +18,27 @@
 </head>
 
 <body>
+    <div class="page-loader" id="page-loader">
+        <div class="loader-card" aria-hidden="true">
+            <div class="loader-sky">
+                <span class="loader-ring"></span>
+                <img src="./assets/icons/weather/partly-cloudy.svg" alt="" class="loader-icon">
+                <span class="loader-dot loader-dot-1"></span>
+                <span class="loader-dot loader-dot-2"></span>
+                <span class="loader-dot loader-dot-3"></span>
+            </div>
+            <div class="loader-progress">
+                <span></span>
+            </div>
+        </div>
+        <p>Loading weather app...</p>
+    </div>
+
     <!-- Header navigation -->
     <header class="top-section">
 
         <div class="sun-cloud-icon">
-            <img src="./assets/icons/sun-behind-cloud.svg" alt="weather icon" class="weather-icon">
+            <img src="./assets/icons/weather/partly-cloudy.svg" alt="weather icon" class="weather-icon">
         </div>
 
         <div class="app-name">
@@ -30,25 +46,68 @@
             <h3 class="app-subtitle">Check the weather, plan your day.</h3>
         </div>
 
-        <!-- Theme toggle -->
-        <div class="mode-toggle-container">
-            <img src="./assets/icons/light-mode.svg" alt="" class="light-mode" aria-hidden="true">
-            <input type="checkbox" id="switch" /><label for="switch">Toggle</label>
-            <img src="./assets/icons/dark-mode.svg" alt="" class="dark-mode" aria-hidden="true">
+        <div class="header-controls">
+            <!-- Language selector -->
+            <div class="language-menu">
+                <select id="language-select" class="language-select" aria-label="Language selector">
+                    <option value="en">EN</option>
+                    <option value="pl">PL</option>
+                    <option value="ua">UA</option>
+                </select>
+
+                <button id="language-button" class="language-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+                    EN
+                </button>
+
+                <div id="language-options" class="language-options" role="listbox" hidden>
+                    <button type="button" data-language="en" role="option">EN</button>
+                    <button type="button" data-language="pl" role="option">PL</button>
+                    <button type="button" data-language="ua" role="option">UA</button>
+                </div>
+            </div>
+
+            <!-- Theme toggle -->
+            <div class="mode-toggle-container">
+                <img src="./assets/icons/app/light-mode.svg" alt="" class="light-mode" aria-hidden="true">
+                <input type="checkbox" id="switch" /><label for="switch">Toggle</label>
+                <img src="./assets/icons/app/dark-mode.svg" alt="" class="dark-mode" aria-hidden="true">
+            </div>
         </div>
 
     </header>
 
-    <main class="main-section">
+    <div class="app-layout">
+        <aside class="city-panel" aria-label="Saved cities panel">
+            <section class="city-panel__section city-panel__section--favorites">
+                <div class="city-panel__header">
+                    <h2 id="favorites-title">Favorite cities</h2>
+                    <span id="favorites-limit">Max 5</span>
+                </div>
+                <ul id="favorite-cities" class="city-list"></ul>
+            </section>
+
+            <section class="city-panel__section city-panel__section--recent">
+                <div class="city-panel__header">
+                    <h2 id="recent-title">Recent searches</h2>
+                    <span id="recent-limit">Last 5</span>
+                </div>
+                <ul id="recent-searches" class="city-list"></ul>
+            </section>
+        </aside>
+
+        <main class="main-section">
         <!-- Search section -->
         <div class="headline-container">
-            <h1 id="headline">What`s the weather like today?</h1>
+            <h1 id="headline">What&rsquo;s the weather like today?</h1>
             <h2 id="subtitle">Search for a city and get the latest weather.</h2>
         </div>
 
         <form class="search-container">
             <label for="city-input" class="visually-hidden">City name</label>
-            <input id="city-input" type="text" placeholder="Enter city name...">
+            <div class="search-input-wrapper">
+                <input id="city-input" type="text" placeholder="Enter city name..." autocomplete="off">
+                <ul id="city-suggestions" class="city-suggestions" hidden></ul>
+            </div>
             <button id="search-button" type="submit">Search</button>
         </form>
 
@@ -57,22 +116,25 @@
 
             <section class="weather-display">
                 <div class="weather-info">
-                    <h2 id="city-name">New York, USA</h2>
+                    <div class="current-city-header">
+                        <h2 id="city-name">New York, USA</h2>
+                        <button id="favorite-button" class="favorite-button" type="button">☆ Save city</button>
+                    </div>
 
-                    <h3 id="date">Monday, May 19 • 12:00 PM </h3>
+                    <h3 id="date">Monday, May 19 - 12:00 PM </h3>
 
                     <p id="temperature">18°C</p>
                     <p id="description">Partly cloudy</p>
                 </div>
 
-                    <img id="current-weather-icon" src="./assets/icons/sun-behind-cloud.svg" alt="Weather Icon">
+                    <img id="current-weather-icon" src="./assets/icons/weather/partly-cloudy.svg" alt="Weather Icon">
 
             </section>
 
             <section class="weather-details">
                 <article class="weather-description">
 
-                    <img src="./assets/icons/feels-like.svg" alt="Feels like icon" class="weather-description-icon"/>
+                    <img src="./assets/icons/metrics/feels-like.svg" alt="Feels like icon" class="weather-description-icon"/>
                     <div class="feels-like-container">
                         <h3>Feels like</h3>
                         <p id="feels-like">18°C</p>
@@ -82,7 +144,7 @@
 
                 <article class="weather-description">
 
-                    <img src="./assets/icons/humidity.svg" alt="Humidity icon" class="weather-description-icon"/>
+                    <img src="./assets/icons/metrics/humidity.svg" alt="Humidity icon" class="weather-description-icon"/>
                     <div class="humidity-container">
                         <h3>Humidity</h3>
                         <p id="humidity">68%</p>
@@ -91,7 +153,7 @@
                 </article>
 
                 <article class="weather-description">
-                    <img src="./assets/icons/wind.svg" alt="Wind icon" class="weather-description-icon"/>
+                    <img src="./assets/icons/metrics/wind.svg" alt="Wind icon" class="weather-description-icon"/>
                     <div class="wind-container">
                         <h3>Wind</h3>
                         <p id="wind-speed">12 km/h</p>
@@ -99,7 +161,7 @@
                 </article>
 
                 <article class="weather-description">
-                    <img src="./assets/icons/pressure.svg" alt="Pressure icon" class="weather-description-icon"/>
+                    <img src="./assets/icons/metrics/pressure.svg" alt="Pressure icon" class="weather-description-icon"/>
                     <div class="pressure-container">
                         <h3>Pressure</h3>
                         <p id="pressure">1015 hPa</p>
@@ -118,7 +180,7 @@
                     <p id="month-1">May 19</p>
                 </div>
 
-                <img src="./assets/icons/sun-behind-cloud.svg" alt="Sunny day" class="card1-icon"/>
+                <img src="./assets/icons/weather/partly-cloudy.svg" alt="Sunny day" class="card1-icon"/>
 
                 <div class="temp-range">
                     <p id="range-1">18°C</p>
@@ -134,7 +196,7 @@
                     <p id="month-2">May 20</p>
                 </div>
 
-                <img src="./assets/icons/sun-behind-cloud.svg" alt="Sunny day" class="card2-icon"/>
+                <img src="./assets/icons/weather/partly-cloudy.svg" alt="Sunny day" class="card2-icon"/>
 
                 <div class="temp-range">
                     <p id="range-3">21°C</p>
@@ -150,7 +212,7 @@
                     <p id="month-3">May 21</p>
                 </div>
 
-                <img src="./assets/icons/sun-behind-cloud.svg" alt="Sunny day" class="card3-icon"/>
+                <img src="./assets/icons/weather/partly-cloudy.svg" alt="Sunny day" class="card3-icon"/>
 
                 <div class="temp-range">
                     <p id="range-5">16°C</p>
@@ -166,7 +228,7 @@
                     <p id="month-4">May 22</p>
                 </div>
 
-                <img src="./assets/icons/sun-behind-cloud.svg" alt="Sunny day" class="card4-icon"/>
+                <img src="./assets/icons/weather/partly-cloudy.svg" alt="Sunny day" class="card4-icon"/>
 
                 <div class="temp-range">
                     <p id="range-7">19°C</p>
@@ -182,7 +244,7 @@
                     <p id="month-5">May 23</p>
                 </div>
 
-                <img src="./assets/icons/sun-behind-cloud.svg" alt="Sunny day" class="card5-icon"/>
+                <img src="./assets/icons/weather/partly-cloudy.svg" alt="Sunny day" class="card5-icon"/>
 
                 <div class="temp-range">
                     <p id="range-9">22°C</p>
@@ -192,10 +254,11 @@
             </article>
 
         </section>
-    </main>
+        </main>
+    </div>
 
     <footer>
-        <p>Created by Plogramist</p>
+        <p>Created by Duck-Script</p>
     </footer>
 
 </body>
