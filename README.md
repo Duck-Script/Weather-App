@@ -6,7 +6,7 @@ Working with an API, rendering dynamic data, handling user input, saving data lo
 
 ## Live Demo
 
--- In development --
+[-- Weather App --](https://duck-script.github.io/Weather-App/)
 
 ## Screenshots
 
