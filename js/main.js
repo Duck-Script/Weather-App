@@ -98,7 +98,8 @@ const translations = {
             emptyCity: "Please enter a city name.",
             cityNotLoaded: "Could not find this city. Please try again.",
             cityNotFound: "City not found. Please check the spelling.",
-            weatherNotLoaded: "Could not load weather data. Please try again."
+            weatherNotLoaded: "Could not load weather data. Please try again.",
+            requestTimeout: "This request is taking too long. Please try again."
         },
         weatherDescriptions: {
             clearSky: "Clear sky",
@@ -150,7 +151,8 @@ const translations = {
             emptyCity: "Wpisz nazwę miasta.",
             cityNotLoaded: "Nie udało się znaleźć tego miasta. Spróbuj ponownie.",
             cityNotFound: "Nie znaleziono miasta. Sprawdź pisownię.",
-            weatherNotLoaded: "Nie udało się pobrać pogody. Spróbuj ponownie."
+            weatherNotLoaded: "Nie udało się pobrać pogody. Spróbuj ponownie.",
+            requestTimeout: "To zapytanie trwa zbyt długo. Spróbuj ponownie."
         },
         weatherDescriptions: {
             clearSky: "Bezchmurnie",
@@ -202,7 +204,8 @@ const translations = {
             emptyCity: "Будь ласка, введи назву міста.",
             cityNotLoaded: "Не вдалося знайти це місто. Спробуй ще раз.",
             cityNotFound: "Місто не знайдено. Перевір написання.",
-            weatherNotLoaded: "Не вдалося завантажити погоду. Спробуй ще раз."
+            weatherNotLoaded: "Не вдалося завантажити погоду. Спробуй ще раз.",
+            requestTimeout: "Цей запит триває занадто довго. Спробуй ще раз."
         },
         weatherDescriptions: {
             clearSky: "Ясно",
@@ -294,6 +297,29 @@ document.addEventListener("click", (event) => {
 
 // API functions
 
+async function fetchWithTimeout(url, timeout = 10000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+    }, timeout);
+
+    try {
+        const response = await fetch(url, {
+            signal: controller.signal
+        });
+
+        return response;
+    } catch (error) {
+        if (error.name === "AbortError") {
+            throw new Error(getText().errors.requestTimeout);
+        }
+
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 async function searchWeatherByCity(city) {
     const trimmedCity = city.trim();
     const requestId = getNextWeatherRequestId();
@@ -329,7 +355,7 @@ async function searchWeatherByCity(city) {
 async function getCityLocation(city) {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`;
 
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
         throw new Error(getText().errors.cityNotLoaded);
@@ -350,7 +376,7 @@ async function getWeatherData(latitude, longitude) {
     // One API call gives current weather and the 5 day forecast.
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=${currentValues}&daily=${dailyValues}&forecast_days=5&timezone=auto`;
 
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
         throw new Error(getText().errors.weatherNotLoaded);
@@ -369,15 +395,24 @@ async function searchWeatherByCoordinates(latitude, longitude, displayName) {
 
     showLoading();
 
-    const weatherData = await getWeatherData(latitude, longitude);
-    const location = await getLocationByCoordinates(latitude, longitude, displayName);
-    const canSaveCity = !location.isCurrentLocation;
+    try {
+        const weatherData = await getWeatherData(latitude, longitude);
+        const location = await getLocationByCoordinates(latitude, longitude, displayName);
+        const canSaveCity = !location.isCurrentLocation;
 
-    if (!isActiveWeatherRequest(requestId)) {
-        return;
+        if (!isActiveWeatherRequest(requestId)) {
+            return;
+        }
+
+        renderWeather(location, weatherData.current, weatherData.daily, canSaveCity);
+    } catch (error) {
+        if (!isActiveWeatherRequest(requestId)) {
+            return;
+        }
+
+        showError(error.message);
+        throw error;
     }
-
-    renderWeather(location, weatherData.current, weatherData.daily, canSaveCity);
 }
 
 // Render functions
@@ -487,7 +522,7 @@ async function getLocationByCoordinates(latitude, longitude, fallbackName) {
     const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=${getReverseGeocodeLanguage()}`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
 
         if (!response.ok) {
             throw new Error(getText().errors.cityNotLoaded);
@@ -848,7 +883,7 @@ async function fetchCitySuggestions(city) {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=5`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
 
         if (!response.ok) {
             hideSuggestions();
