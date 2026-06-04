@@ -107,7 +107,8 @@ const translations = {
             cityNotFound: "City not found. Please check the spelling.",
             weatherNotLoaded: "Could not load weather data. Please try again.",
             networkError: "Network error. Please check your connection and try again.",
-            tooManyRequests: "Too many weather requests. Please wait a minute and try again."
+            tooManyRequests: "Too many weather requests. Please wait a minute and try again.",
+            weatherServiceDown: "Weather service is temporarily unavailable. Please try again later."
         },
         weatherDescriptions: {
             clearSky: "Clear sky",
@@ -161,7 +162,8 @@ const translations = {
             cityNotFound: "Nie znaleziono miasta. Sprawdź pisownię.",
             weatherNotLoaded: "Nie udało się pobrać pogody. Spróbuj ponownie.",
             networkError: "Błąd sieci. Sprawdź połączenie i spróbuj ponownie.",
-            tooManyRequests: "Zbyt wiele zapytań o pogodę. Poczekaj minutę i spróbuj ponownie."
+            tooManyRequests: "Zbyt wiele zapytań o pogodę. Poczekaj minutę i spróbuj ponownie.",
+            weatherServiceDown: "Serwis pogodowy jest tymczasowo niedostępny. Spróbuj ponownie później."
         },
         weatherDescriptions: {
             clearSky: "Bezchmurnie",
@@ -215,7 +217,8 @@ const translations = {
             cityNotFound: "Місто не знайдено. Перевір написання.",
             weatherNotLoaded: "Не вдалося завантажити погоду. Спробуй ще раз.",
             networkError: "Помилка мережі. Перевір підключення та спробуй ще раз.",
-            tooManyRequests: "Забагато запитів погоди. Зачекай хвилину та спробуй ще раз."
+            tooManyRequests: "Забагато запитів погоди. Зачекай хвилину та спробуй ще раз.",
+            weatherServiceDown: "Сервіс погоди тимчасово недоступний. Спробуй пізніше."
         },
         weatherDescriptions: {
             clearSky: "Ясно",
@@ -403,11 +406,20 @@ async function getWeatherData(latitude, longitude) {
             throw new Error(getText().errors.tooManyRequests);
         }
 
-        const response = await fetch(url);
+        let response = await fetch(url);
+
+        if (isRetryableWeatherServiceError(response.status)) {
+            await wait(800);
+            response = await fetch(url);
+        }
 
         if (response.status === 429) {
             startApiCooldown();
             throw new Error(getText().errors.tooManyRequests);
+        }
+
+        if (isWeatherServiceError(response.status)) {
+            throw new Error(getText().errors.weatherServiceDown);
         }
 
         if (!response.ok) {
@@ -423,7 +435,7 @@ async function getWeatherData(latitude, longitude) {
     } catch (error) {
         if (isNetworkError(error)) {
             startApiCooldown();
-            throw new Error(getText().errors.networkError);
+            throw new Error(getText().errors.weatherServiceDown);
         }
 
         throw error;
@@ -526,6 +538,18 @@ function isApiOnCooldown() {
 
 function startApiCooldown(seconds = 60) {
     apiCooldownUntil = Date.now() + seconds * 1000;
+}
+
+function isWeatherServiceError(status) {
+    return status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function isRetryableWeatherServiceError(status) {
+    return status === 502 || status === 503 || status === 504;
+}
+
+function wait(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function getCachedWeather() {
