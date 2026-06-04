@@ -61,6 +61,7 @@ let currentCity = null;
 let suggestionsTimeout = null;
 let weatherRequestId = 0;
 let apiCooldownUntil = 0;
+let isWeatherLoading = false;
 const suggestionsCache = {};
 
 // UI
@@ -295,7 +296,7 @@ cityInput.addEventListener("input", () => {
 
     suggestionsTimeout = setTimeout(() => {
         fetchCitySuggestions(city);
-    }, 600);
+    }, 700);
 });
 
 document.addEventListener("click", (event) => {
@@ -314,7 +315,7 @@ async function searchWeatherByCity(city) {
         return;
     }
 
-    if (searchButton.disabled) {
+    if (isWeatherLoading) {
         return;
     }
 
@@ -325,6 +326,7 @@ async function searchWeatherByCity(city) {
 
     hideSuggestions();
     showLoading();
+    isWeatherLoading = true;
 
     const requestId = getNextWeatherRequestId();
 
@@ -346,6 +348,11 @@ async function searchWeatherByCity(city) {
         }
 
         showError(error.message);
+    } finally {
+        if (isActiveWeatherRequest(requestId)) {
+            isWeatherLoading = false;
+            searchButton.disabled = false;
+        }
     }
 }
 
@@ -377,6 +384,7 @@ async function getCityLocation(city) {
         return data.results[0];
     } catch (error) {
         if (isNetworkError(error)) {
+            startApiCooldown();
             throw new Error(getText().errors.networkError);
         }
 
@@ -414,6 +422,7 @@ async function getWeatherData(latitude, longitude) {
         };
     } catch (error) {
         if (isNetworkError(error)) {
+            startApiCooldown();
             throw new Error(getText().errors.networkError);
         }
 
@@ -422,28 +431,7 @@ async function getWeatherData(latitude, longitude) {
 }
 
 async function searchWeatherByCoordinates(latitude, longitude, displayName) {
-    const requestId = getNextWeatherRequestId();
-
-    showLoading();
-
-    try {
-        const weatherData = await getWeatherData(latitude, longitude);
-        const location = await getLocationByCoordinates(latitude, longitude, displayName);
-        const canSaveCity = !location.isCurrentLocation;
-
-        if (!isActiveWeatherRequest(requestId)) {
-            return;
-        }
-
-        renderWeather(location, weatherData.current, weatherData.daily, canSaveCity);
-        saveCachedWeather(location, weatherData.current, weatherData.daily, canSaveCity);
-    } catch (error) {
-        if (!isActiveWeatherRequest(requestId)) {
-            return;
-        }
-
-        showError(error.message);
-    }
+    setDefaultWeatherText();
 }
 
 // Render functions
@@ -538,10 +526,6 @@ function isApiOnCooldown() {
 
 function startApiCooldown(seconds = 60) {
     apiCooldownUntil = Date.now() + seconds * 1000;
-}
-
-function isTooManyRequestsError(error) {
-    return error.message === getText().errors.tooManyRequests;
 }
 
 function getCachedWeather() {
@@ -660,28 +644,8 @@ async function initializeStartupWeather() {
         return;
     }
 
-    if (sessionStorage.getItem(STARTUP_DONE_KEY)) {
-        return;
-    }
-
     sessionStorage.setItem(STARTUP_DONE_KEY, "true");
-
-    if (isApiOnCooldown()) {
-        showError(getText().errors.tooManyRequests);
-        return;
-    }
-
-    if (getLastCity()) {
-        await loadLastCityWeather();
-        return;
-    }
-
-    const startupRequestId = weatherRequestId;
-    const loadedByLocation = await tryLoadWeatherByGeolocation(startupRequestId);
-
-    if (!loadedByLocation && isActiveWeatherRequest(startupRequestId)) {
-        setDefaultWeatherText();
-    }
+    setDefaultWeatherText();
 }
 
 async function tryLoadWeatherByGeolocation(startupRequestId) {
@@ -719,42 +683,7 @@ function getCurrentPosition() {
 }
 
 async function loadLastCityWeather() {
-    const lastCity = getLastCity();
-    const requestId = getNextWeatherRequestId();
-
-    if (!lastCity) {
-        return false;
-    }
-
-    showLoading();
-
-    try {
-        const location = typeof lastCity.latitude === "number" && typeof lastCity.longitude === "number"
-            ? lastCity
-            : await getCityLocation(lastCity.name);
-        const weatherData = await getWeatherData(location.latitude, location.longitude);
-
-        if (!isActiveWeatherRequest(requestId)) {
-            return;
-        }
-
-        renderWeather(location, weatherData.current, weatherData.daily);
-        saveCachedWeather(location, weatherData.current, weatherData.daily, true);
-        saveLastCity(currentCity);
-        return true;
-    } catch (error) {
-        if (!isActiveWeatherRequest(requestId)) {
-            return false;
-        }
-
-        if (isTooManyRequestsError(error)) {
-            showError(error.message);
-            return true;
-        }
-
-        setDefaultWeatherText();
-        return false;
-    }
+    return false;
 }
 
 function applyLanguage() {
@@ -994,6 +923,7 @@ async function fetchCitySuggestions(city) {
 
     if (isApiOnCooldown()) {
         hideSuggestions();
+        showError(getText().errors.tooManyRequests);
         return;
     }
 
@@ -1025,6 +955,10 @@ async function fetchCitySuggestions(city) {
         suggestionsCache[query] = suggestions;
         renderCitySuggestions(suggestions);
     } catch (error) {
+        if (isNetworkError(error)) {
+            startApiCooldown();
+        }
+
         hideSuggestions();
     }
 }
