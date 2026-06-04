@@ -1,24 +1,15 @@
 ﻿// Switching between light and dark themes
 
 const themeSwitch = document.querySelector("#switch");
-const savedTheme = localStorage.getItem("weatherAppTheme");
+const savedTheme = getInitialTheme();
 
-if (savedTheme === "dark") {
-    document.body.classList.add("dark-theme");
-    themeSwitch.checked = true;
-} else {
-    document.body.classList.remove("dark-theme");
-    themeSwitch.checked = false;
-}
+applyTheme(savedTheme);
 
 themeSwitch.addEventListener("change", () => {
-    if (themeSwitch.checked) {
-        document.body.classList.add("dark-theme");
-        localStorage.setItem("weatherAppTheme", "dark");
-    } else {
-        document.body.classList.remove("dark-theme");
-        localStorage.setItem("weatherAppTheme", "light");
-    }
+    const theme = themeSwitch.checked ? "dark" : "light";
+
+    applyTheme(theme);
+    localStorage.setItem("weatherAppTheme", theme);
 });
 
 // DOM elements
@@ -53,15 +44,18 @@ const forecastTemperatureElements = document.querySelectorAll(".temp-range p");
 const WEATHER_ICON_PATH = "./assets/icons/weather/";
 const WARNING_ICON_PATH = "./assets/icons/warnings/";
 const STRONG_WIND_SPEED_KMH = 54;
+const LAST_CITY_KEY = "weatherAppLastCity";
 
 // Small saved state, so the app feels the same after refresh.
 let currentLanguage = localStorage.getItem("weatherAppLanguage") || "en";
 let lastLocation = null;
 let lastWeather = null;
 let lastDailyForecast = null;
+let lastCanSaveCity = true;
 let currentWeatherState = "default";
 let currentCity = null;
 let suggestionsTimeout = null;
+let weatherRequestId = 0;
 
 // All UI text lives here, because the app has three simple languages.
 const translations = {
@@ -92,6 +86,7 @@ const translations = {
         noFavorites: "No favorite cities yet.",
         noRecentSearches: "No recent searches yet.",
         noSuggestions: "No results",
+        yourLocation: "Your location",
         forecastDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
         forecastDates: ["May 19", "May 20", "May 21", "May 22", "May 23"],
         loadingCity: "Loading...",
@@ -143,6 +138,7 @@ const translations = {
         noFavorites: "Brak ulubionych miast.",
         noRecentSearches: "Brak ostatnich wyszukiwań.",
         noSuggestions: "Brak wyników",
+        yourLocation: "Twoja lokalizacja",
         forecastDays: ["Pon", "Wt", "Śr", "Czw", "Pt"],
         forecastDates: ["19 maja", "20 maja", "21 maja", "22 maja", "23 maja"],
         loadingCity: "Ładowanie...",
@@ -194,6 +190,7 @@ const translations = {
         noFavorites: "Улюблених міст ще немає.",
         noRecentSearches: "Останніх пошуків ще немає.",
         noSuggestions: "Нічого не знайдено",
+        yourLocation: "Твоя локація",
         forecastDays: ["Пн", "Вт", "Ср", "Чт", "Пт"],
         forecastDates: ["19 травня", "20 травня", "21 травня", "22 травня", "23 травня"],
         loadingCity: "Завантаження...",
@@ -228,6 +225,7 @@ if (!translations[currentLanguage]) {
 applyLanguage();
 renderFavorites();
 renderRecentSearches();
+initializeStartupWeather();
 
 window.addEventListener("load", () => {
     if (pageLoader) {
@@ -298,6 +296,7 @@ document.addEventListener("click", (event) => {
 
 async function searchWeatherByCity(city) {
     const trimmedCity = city.trim();
+    const requestId = getNextWeatherRequestId();
 
     if (trimmedCity === "") {
         showError(getText().errors.emptyCity);
@@ -311,9 +310,18 @@ async function searchWeatherByCity(city) {
         const location = await getCityLocation(trimmedCity);
         const weatherData = await getWeatherData(location.latitude, location.longitude);
 
+        if (!isActiveWeatherRequest(requestId)) {
+            return;
+        }
+
         renderWeather(location, weatherData.current, weatherData.daily);
+        saveLastCity(currentCity);
         addRecentSearch(currentCity);
     } catch (error) {
+        if (!isActiveWeatherRequest(requestId)) {
+            return;
+        }
+
         showError(error.message);
     }
 }
@@ -356,6 +364,22 @@ async function getWeatherData(latitude, longitude) {
     };
 }
 
+async function searchWeatherByCoordinates(latitude, longitude, displayName) {
+    const requestId = getNextWeatherRequestId();
+
+    showLoading();
+
+    const weatherData = await getWeatherData(latitude, longitude);
+    const location = await getLocationByCoordinates(latitude, longitude, displayName);
+    const canSaveCity = !location.isCurrentLocation;
+
+    if (!isActiveWeatherRequest(requestId)) {
+        return;
+    }
+
+    renderWeather(location, weatherData.current, weatherData.daily, canSaveCity);
+}
+
 // Render functions
 
 function showLoading() {
@@ -392,7 +416,7 @@ function showError(message) {
     updateFavoriteButton();
 }
 
-function renderWeather(location, weather, dailyForecast) {
+function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
     const weatherDescription = getWeatherDescription(weather.weather_code);
     const isNight = weather.is_day === 0;
     const text = getText();
@@ -400,15 +424,16 @@ function renderWeather(location, weather, dailyForecast) {
     lastLocation = location;
     lastWeather = weather;
     lastDailyForecast = dailyForecast;
+    lastCanSaveCity = canSaveCity;
     currentWeatherState = "weather";
-    currentCity = {
+    currentCity = canSaveCity ? {
         name: location.name,
         country: location.country,
         latitude: location.latitude,
         longitude: location.longitude
-    };
+    } : null;
 
-    cityNameElement.textContent = `${location.name}, ${location.country}`;
+    cityNameElement.textContent = getLocationLabel(location);
     dateElement.textContent = new Date(weather.time).toLocaleDateString(text.dateLocale, {
         weekday: "long",
         year: "numeric",
@@ -432,6 +457,159 @@ function renderWeather(location, weather, dailyForecast) {
 
 function getText() {
     return translations[currentLanguage];
+}
+
+function applyTheme(theme) {
+    if (theme === "dark") {
+        document.body.classList.add("dark-theme");
+        themeSwitch.checked = true;
+    } else {
+        document.body.classList.remove("dark-theme");
+        themeSwitch.checked = false;
+    }
+}
+
+function getInitialTheme() {
+    const savedTheme = localStorage.getItem("weatherAppTheme");
+
+    if (savedTheme === "dark" || savedTheme === "light") {
+        return savedTheme;
+    }
+
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        return "dark";
+    }
+
+    return "light";
+}
+
+async function getLocationByCoordinates(latitude, longitude, fallbackName) {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=${getReverseGeocodeLanguage()}`;
+
+    try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(getText().errors.cityNotLoaded);
+        }
+
+        const data = await response.json();
+        const cityName = data.city || data.locality || data.principalSubdivision;
+        const countryName = data.countryName || data.countryCode || "";
+
+        if (!cityName) {
+            throw new Error(getText().errors.cityNotLoaded);
+        }
+
+        return {
+            name: cityName,
+            country: countryName,
+            latitude,
+            longitude
+        };
+    } catch (error) {
+        return {
+            name: fallbackName || getText().yourLocation,
+            country: "",
+            latitude,
+            longitude,
+            isCurrentLocation: true
+        };
+    }
+}
+
+function getReverseGeocodeLanguage() {
+    if (currentLanguage === "ua") {
+        return "uk";
+    }
+
+    return currentLanguage;
+}
+
+function getNextWeatherRequestId() {
+    weatherRequestId++;
+
+    return weatherRequestId;
+}
+
+function isActiveWeatherRequest(requestId) {
+    return requestId === weatherRequestId;
+}
+
+async function initializeStartupWeather() {
+    const startupRequestId = weatherRequestId;
+    const loadedByLocation = await tryLoadWeatherByGeolocation(startupRequestId);
+
+    if (loadedByLocation || !isActiveWeatherRequest(startupRequestId)) {
+        return;
+    }
+
+    await loadLastCityWeather();
+}
+
+async function tryLoadWeatherByGeolocation(startupRequestId) {
+    if (!navigator.geolocation) {
+        return false;
+    }
+
+    try {
+        const position = await getCurrentPosition();
+
+        if (!isActiveWeatherRequest(startupRequestId)) {
+            return false;
+        }
+
+        await searchWeatherByCoordinates(
+            position.coords.latitude,
+            position.coords.longitude,
+            getText().yourLocation
+        );
+
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 7000,
+            maximumAge: 600000
+        });
+    });
+}
+
+async function loadLastCityWeather() {
+    const lastCity = getLastCity();
+    const requestId = getNextWeatherRequestId();
+
+    if (!lastCity) {
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const location = typeof lastCity.latitude === "number" && typeof lastCity.longitude === "number"
+            ? lastCity
+            : await getCityLocation(lastCity.name);
+        const weatherData = await getWeatherData(location.latitude, location.longitude);
+
+        if (!isActiveWeatherRequest(requestId)) {
+            return;
+        }
+
+        renderWeather(location, weatherData.current, weatherData.daily);
+        saveLastCity(currentCity);
+    } catch (error) {
+        if (!isActiveWeatherRequest(requestId)) {
+            return;
+        }
+
+        setDefaultWeatherText();
+    }
 }
 
 function applyLanguage() {
@@ -485,7 +663,7 @@ function changeLanguage(language) {
 
     // Re-render weather after language change, so dates and descriptions update too.
     if (lastLocation && lastWeather) {
-        renderWeather(lastLocation, lastWeather, lastDailyForecast);
+        renderWeather(lastLocation, lastWeather, lastDailyForecast, lastCanSaveCity);
     } else if (currentWeatherState === "loading") {
         showLoading();
     } else if (currentWeatherState === "default") {
@@ -499,11 +677,31 @@ function closeLanguageMenu() {
 }
 
 function getFavorites() {
-    return JSON.parse(localStorage.getItem("weatherAppFavorites")) || [];
+    try {
+        return JSON.parse(localStorage.getItem("weatherAppFavorites")) || [];
+    } catch (error) {
+        return [];
+    }
 }
 
 function saveFavorites(favorites) {
     localStorage.setItem("weatherAppFavorites", JSON.stringify(favorites));
+}
+
+function getLastCity() {
+    try {
+        return JSON.parse(localStorage.getItem(LAST_CITY_KEY));
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveLastCity(city) {
+    if (!city || !city.name) {
+        return;
+    }
+
+    localStorage.setItem(LAST_CITY_KEY, JSON.stringify(city));
 }
 
 function renderFavorites() {
@@ -572,7 +770,11 @@ function removeFavoriteCity(cityName) {
 }
 
 function getRecentSearches() {
-    return JSON.parse(localStorage.getItem("weatherAppRecentSearches")) || [];
+    try {
+        return JSON.parse(localStorage.getItem("weatherAppRecentSearches")) || [];
+    } catch (error) {
+        return [];
+    }
 }
 
 function saveRecentSearches(recentSearches) {
@@ -580,6 +782,10 @@ function saveRecentSearches(recentSearches) {
 }
 
 function addRecentSearch(city) {
+    if (!city || !city.name) {
+        return;
+    }
+
     // Keep latest search on top and avoid duplicated cities.
     const recentSearches = getRecentSearches().filter((recentCity) => recentCity.name !== city.name);
 
@@ -628,6 +834,14 @@ function updateFavoriteButton() {
 
 function getCityLabel(city) {
     return city.country ? `${city.name}, ${city.country}` : city.name;
+}
+
+function getLocationLabel(location) {
+    if (location.isCurrentLocation) {
+        return getText().yourLocation;
+    }
+
+    return getCityLabel(location);
 }
 
 async function fetchCitySuggestions(city) {
