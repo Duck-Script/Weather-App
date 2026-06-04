@@ -20,6 +20,7 @@ const languageOptions = document.querySelector("#language-options");
 const languageOptionButtons = document.querySelectorAll("[data-language]");
 const searchForm = document.querySelector(".search-container");
 const cityInput = document.querySelector("#city-input");
+const searchButton = document.querySelector("#search-button");
 const citySuggestions = document.querySelector("#city-suggestions");
 const favoriteCitiesList = document.querySelector("#favorite-cities");
 const recentSearchesList = document.querySelector("#recent-searches");
@@ -45,6 +46,9 @@ const WEATHER_ICON_PATH = "./assets/icons/weather/";
 const WARNING_ICON_PATH = "./assets/icons/warnings/";
 const STRONG_WIND_SPEED_KMH = 54;
 const LAST_CITY_KEY = "weatherAppLastCity";
+const LAST_WEATHER_KEY = "weatherAppLastWeather";
+const STARTUP_DONE_KEY = "weatherAppStartupDone";
+const CACHE_MAX_AGE = 10 * 60 * 1000;
 
 // Small saved state, so the app feels the same after refresh.
 let currentLanguage = localStorage.getItem("weatherAppLanguage") || "en";
@@ -56,6 +60,8 @@ let currentWeatherState = "default";
 let currentCity = null;
 let suggestionsTimeout = null;
 let weatherRequestId = 0;
+let apiCooldownUntil = 0;
+const suggestionsCache = {};
 
 // UI
 const translations = {
@@ -99,7 +105,8 @@ const translations = {
             cityNotLoaded: "Could not find this city. Please try again.",
             cityNotFound: "City not found. Please check the spelling.",
             weatherNotLoaded: "Could not load weather data. Please try again.",
-            networkError: "Network error. Please check your connection and try again."
+            networkError: "Network error. Please check your connection and try again.",
+            tooManyRequests: "Too many weather requests. Please wait a minute and try again."
         },
         weatherDescriptions: {
             clearSky: "Clear sky",
@@ -152,7 +159,8 @@ const translations = {
             cityNotLoaded: "Nie udało się znaleźć tego miasta. Spróbuj ponownie.",
             cityNotFound: "Nie znaleziono miasta. Sprawdź pisownię.",
             weatherNotLoaded: "Nie udało się pobrać pogody. Spróbuj ponownie.",
-            networkError: "Błąd sieci. Sprawdź połączenie i spróbuj ponownie."
+            networkError: "Błąd sieci. Sprawdź połączenie i spróbuj ponownie.",
+            tooManyRequests: "Zbyt wiele zapytań o pogodę. Poczekaj minutę i spróbuj ponownie."
         },
         weatherDescriptions: {
             clearSky: "Bezchmurnie",
@@ -205,7 +213,8 @@ const translations = {
             cityNotLoaded: "Не вдалося знайти це місто. Спробуй ще раз.",
             cityNotFound: "Місто не знайдено. Перевір написання.",
             weatherNotLoaded: "Не вдалося завантажити погоду. Спробуй ще раз.",
-            networkError: "Помилка мережі. Перевір підключення та спробуй ще раз."
+            networkError: "Помилка мережі. Перевір підключення та спробуй ще раз.",
+            tooManyRequests: "Забагато запитів погоди. Зачекай хвилину та спробуй ще раз."
         },
         weatherDescriptions: {
             clearSky: "Ясно",
@@ -279,14 +288,14 @@ cityInput.addEventListener("input", () => {
 
     const city = cityInput.value.trim();
 
-    if (city.length < 2) {
+    if (city.length < 3) {
         hideSuggestions();
         return;
     }
 
     suggestionsTimeout = setTimeout(() => {
         fetchCitySuggestions(city);
-    }, 300);
+    }, 600);
 });
 
 document.addEventListener("click", (event) => {
@@ -299,15 +308,25 @@ document.addEventListener("click", (event) => {
 
 async function searchWeatherByCity(city) {
     const trimmedCity = city.trim();
-    const requestId = getNextWeatherRequestId();
 
     if (trimmedCity === "") {
         showError(getText().errors.emptyCity);
         return;
     }
 
+    if (searchButton.disabled) {
+        return;
+    }
+
+    if (isApiOnCooldown()) {
+        showError(getText().errors.tooManyRequests);
+        return;
+    }
+
     hideSuggestions();
     showLoading();
+
+    const requestId = getNextWeatherRequestId();
 
     try {
         const location = await getCityLocation(trimmedCity);
@@ -318,6 +337,7 @@ async function searchWeatherByCity(city) {
         }
 
         renderWeather(location, weatherData.current, weatherData.daily);
+        saveCachedWeather(location, weatherData.current, weatherData.daily, true);
         saveLastCity(currentCity);
         addRecentSearch(currentCity);
     } catch (error) {
@@ -333,7 +353,16 @@ async function getCityLocation(city) {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`;
 
     try {
+        if (isApiOnCooldown()) {
+            throw new Error(getText().errors.tooManyRequests);
+        }
+
         const response = await fetch(url);
+
+        if (response.status === 429) {
+            startApiCooldown();
+            throw new Error(getText().errors.tooManyRequests);
+        }
 
         if (!response.ok) {
             throw new Error(getText().errors.cityNotLoaded);
@@ -347,8 +376,6 @@ async function getCityLocation(city) {
 
         return data.results[0];
     } catch (error) {
-        console.error("Weather API error:", error);
-
         if (isNetworkError(error)) {
             throw new Error(getText().errors.networkError);
         }
@@ -364,7 +391,16 @@ async function getWeatherData(latitude, longitude) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=${currentValues}&daily=${dailyValues}&forecast_days=5&timezone=auto`;
 
     try {
+        if (isApiOnCooldown()) {
+            throw new Error(getText().errors.tooManyRequests);
+        }
+
         const response = await fetch(url);
+
+        if (response.status === 429) {
+            startApiCooldown();
+            throw new Error(getText().errors.tooManyRequests);
+        }
 
         if (!response.ok) {
             throw new Error(getText().errors.weatherNotLoaded);
@@ -377,8 +413,6 @@ async function getWeatherData(latitude, longitude) {
             daily: data.daily
         };
     } catch (error) {
-        console.error("Weather API error:", error);
-
         if (isNetworkError(error)) {
             throw new Error(getText().errors.networkError);
         }
@@ -402,13 +436,13 @@ async function searchWeatherByCoordinates(latitude, longitude, displayName) {
         }
 
         renderWeather(location, weatherData.current, weatherData.daily, canSaveCity);
+        saveCachedWeather(location, weatherData.current, weatherData.daily, canSaveCity);
     } catch (error) {
         if (!isActiveWeatherRequest(requestId)) {
             return;
         }
 
         showError(error.message);
-        throw error;
     }
 }
 
@@ -416,6 +450,7 @@ async function searchWeatherByCoordinates(latitude, longitude, displayName) {
 
 function showLoading() {
     currentWeatherState = "loading";
+    searchButton.disabled = true;
 
     cityNameElement.textContent = getText().loadingCity;
     dateElement.textContent = "";
@@ -433,6 +468,7 @@ function showLoading() {
 function showError(message) {
     currentWeatherState = "error";
     currentCity = null;
+    searchButton.disabled = false;
 
     cityNameElement.textContent = getText().weatherUnavailable;
     dateElement.textContent = "";
@@ -458,6 +494,7 @@ function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
     lastDailyForecast = dailyForecast;
     lastCanSaveCity = canSaveCity;
     currentWeatherState = "weather";
+    searchButton.disabled = false;
     currentCity = canSaveCity ? {
         name: location.name,
         country: location.country,
@@ -495,6 +532,44 @@ function isNetworkError(error) {
     return error instanceof TypeError || error.message === "Failed to fetch";
 }
 
+function isApiOnCooldown() {
+    return Date.now() < apiCooldownUntil;
+}
+
+function startApiCooldown(seconds = 60) {
+    apiCooldownUntil = Date.now() + seconds * 1000;
+}
+
+function isTooManyRequestsError(error) {
+    return error.message === getText().errors.tooManyRequests;
+}
+
+function getCachedWeather() {
+    try {
+        const cachedWeather = JSON.parse(localStorage.getItem(LAST_WEATHER_KEY));
+
+        if (!cachedWeather || Date.now() - cachedWeather.timestamp > CACHE_MAX_AGE) {
+            return null;
+        }
+
+        return cachedWeather;
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveCachedWeather(location, weather, dailyForecast, canSaveCity) {
+    const cachedWeather = {
+        location,
+        current: weather,
+        daily: dailyForecast,
+        canSaveCity,
+        timestamp: Date.now()
+    };
+
+    localStorage.setItem(LAST_WEATHER_KEY, JSON.stringify(cachedWeather));
+}
+
 function applyTheme(theme) {
     if (theme === "dark") {
         document.body.classList.add("dark-theme");
@@ -525,6 +600,11 @@ async function getLocationByCoordinates(latitude, longitude, fallbackName) {
     try {
         const response = await fetch(url);
 
+        if (response.status === 429) {
+            startApiCooldown();
+            throw new Error(getText().errors.tooManyRequests);
+        }
+
         if (!response.ok) {
             throw new Error(getText().errors.cityNotLoaded);
         }
@@ -544,8 +624,6 @@ async function getLocationByCoordinates(latitude, longitude, fallbackName) {
             longitude
         };
     } catch (error) {
-        console.error("Weather API error:", error);
-
         return {
             name: fallbackName || getText().yourLocation,
             country: "",
@@ -575,14 +653,35 @@ function isActiveWeatherRequest(requestId) {
 }
 
 async function initializeStartupWeather() {
-    const startupRequestId = weatherRequestId;
-    const loadedByLocation = await tryLoadWeatherByGeolocation(startupRequestId);
+    const cachedWeather = getCachedWeather();
 
-    if (loadedByLocation || !isActiveWeatherRequest(startupRequestId)) {
+    if (cachedWeather) {
+        renderWeather(cachedWeather.location, cachedWeather.current, cachedWeather.daily, cachedWeather.canSaveCity);
         return;
     }
 
-    await loadLastCityWeather();
+    if (sessionStorage.getItem(STARTUP_DONE_KEY)) {
+        return;
+    }
+
+    sessionStorage.setItem(STARTUP_DONE_KEY, "true");
+
+    if (isApiOnCooldown()) {
+        showError(getText().errors.tooManyRequests);
+        return;
+    }
+
+    if (getLastCity()) {
+        await loadLastCityWeather();
+        return;
+    }
+
+    const startupRequestId = weatherRequestId;
+    const loadedByLocation = await tryLoadWeatherByGeolocation(startupRequestId);
+
+    if (!loadedByLocation && isActiveWeatherRequest(startupRequestId)) {
+        setDefaultWeatherText();
+    }
 }
 
 async function tryLoadWeatherByGeolocation(startupRequestId) {
@@ -624,7 +723,7 @@ async function loadLastCityWeather() {
     const requestId = getNextWeatherRequestId();
 
     if (!lastCity) {
-        return;
+        return false;
     }
 
     showLoading();
@@ -640,13 +739,21 @@ async function loadLastCityWeather() {
         }
 
         renderWeather(location, weatherData.current, weatherData.daily);
+        saveCachedWeather(location, weatherData.current, weatherData.daily, true);
         saveLastCity(currentCity);
+        return true;
     } catch (error) {
         if (!isActiveWeatherRequest(requestId)) {
-            return;
+            return false;
+        }
+
+        if (isTooManyRequestsError(error)) {
+            showError(error.message);
+            return true;
         }
 
         setDefaultWeatherText();
+        return false;
     }
 }
 
@@ -883,10 +990,29 @@ function getLocationLabel(location) {
 }
 
 async function fetchCitySuggestions(city) {
+    const query = city.toLowerCase();
+
+    if (isApiOnCooldown()) {
+        hideSuggestions();
+        return;
+    }
+
+    if (suggestionsCache[query]) {
+        renderCitySuggestions(suggestionsCache[query]);
+        return;
+    }
+
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=5`;
 
     try {
         const response = await fetch(url);
+
+        if (response.status === 429) {
+            startApiCooldown();
+            hideSuggestions();
+            showError(getText().errors.tooManyRequests);
+            return;
+        }
 
         if (!response.ok) {
             hideSuggestions();
@@ -894,10 +1020,11 @@ async function fetchCitySuggestions(city) {
         }
 
         const data = await response.json();
-        renderCitySuggestions(data.results || []);
-    } catch (error) {
-        console.error("Weather API error:", error);
+        const suggestions = data.results || [];
 
+        suggestionsCache[query] = suggestions;
+        renderCitySuggestions(suggestions);
+    } catch (error) {
         hideSuggestions();
     }
 }
@@ -944,6 +1071,7 @@ function setDefaultWeatherText() {
     const text = getText();
 
     currentCity = null;
+    searchButton.disabled = false;
     cityNameElement.textContent = text.defaultCity;
     dateElement.textContent = text.defaultDate;
     temperatureElement.textContent = "18°C";
