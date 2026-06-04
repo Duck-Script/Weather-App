@@ -6,7 +6,7 @@ Working with an API, rendering dynamic data, handling user input, saving data lo
 
 ## Live Demo
 
-[-- Weather App --](https://duck-script.github.io/Weather-App/)
+[Click here: Weather App](https://duck-script.github.io/Weather-App/)
 
 ## Screenshots
 
@@ -20,8 +20,8 @@ Working with an API, rendering dynamic data, handling user input, saving data lo
 
 ## Features
 
-- Search weather by city name
-- Current weather data from API
+- Search weather by city name, including a few common multilingual aliases
+- Current weather data from Open-Meteo API
 - 5-day forecast
 - Dynamic weather icons
 - Light and dark theme
@@ -31,7 +31,12 @@ Working with an API, rendering dynamic data, handling user input, saving data lo
 - Recent searches history
 - City autocomplete suggestions
 - Multi-language UI
-- Geolocation-based startup weather
+- Weather-based background
+- Time-aware sky background
+- Current clock and local weather time
+- Duck Mode easter egg
+- Small localStorage cache
+- API cooldown and friendly error states
 - Loading and error states
 - Responsive glassmorphism interface
 
@@ -63,16 +68,7 @@ cd Weather-App
 
 ## Project Status
 
-The project is still in development, but the main functionality is already working.
-
-Next improvements I may add:
-
-- More polished mobile layout
-- Better accessibility
-- Dynamic weather-based background
-- More detailed weather metrics
-- Small UI animations
-- Final README and deployment polish
+The project is in its final portfolio polish stage. The main features are working.
 
 ## Author
 
