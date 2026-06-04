@@ -59,7 +59,7 @@ git clone https://github.com/Plogramist/Weather-App.git
 cd Weather-App
 ```
 
-3. Open `main.html` in your browser.
+3. Open `index.html` in your browser.
 
 ## Project Status
 
