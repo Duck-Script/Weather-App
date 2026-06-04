@@ -50,7 +50,7 @@ Working with an API, rendering dynamic data, handling user input, saving data lo
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/Plogramist/Weather-App.git
+git clone https://github.com/Duck-Script/Weather-App.git
 ```
 
 2. Open the project folder:
