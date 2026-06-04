@@ -12,11 +12,11 @@ Working with an API, rendering dynamic data, handling user input, saving data lo
 
 ### Light Theme
 
-![Weather App Light Theme](./assets/screenshots/screenshot-lighttheme-v1.1.png)
+![Weather App Light Theme](./assets/screenshots/screenshot-lighttheme-v1.2.png)
 
 ### Dark Theme
 
-![Weather App Dark Theme](./assets/screenshots/screenshot-darktheme-v1.1.png)
+![Weather App Dark Theme](./assets/screenshots/screenshot-darktheme-v1.2.png)
 
 ## Features
 

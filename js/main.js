@@ -1,4 +1,4 @@
-﻿// Switching between light and dark themes
+﻿// Theme setup
 
 const themeSwitch = document.querySelector("#switch");
 const savedTheme = getInitialTheme();
@@ -12,7 +12,7 @@ themeSwitch.addEventListener("change", () => {
     localStorage.setItem("weatherAppTheme", theme);
 });
 
-// DOM elements
+// Elements I use often
 const pageLoader = document.querySelector("#page-loader");
 const languageSelect = document.querySelector("#language-select");
 const languageButton = document.querySelector("#language-button");
@@ -54,6 +54,7 @@ const STARTUP_DONE_KEY = "weatherAppLocationTried";
 const API_COOLDOWN_KEY = "weatherAppApiCooldownUntil";
 const FAVORITES_LIMIT = 15;
 const CACHE_MAX_AGE = 10 * 60 * 1000;
+
 const WEATHER_BACKGROUND_CLASSES = [
     "weather-default",
     "weather-clear-day",
@@ -65,63 +66,109 @@ const WEATHER_BACKGROUND_CLASSES = [
     "weather-fog",
     "weather-wind"
 ];
-const TIME_BACKGROUND_CLASSES = [
-    "time-morning",
-    "time-day",
-    "time-evening",
-    "time-night"
-];
+
 const CITY_ALIASES = {
     "crimea": "Crimea",
     "крим": "Crimea",
+
     "kyiv": "Kyiv",
     "київ": "Kyiv",
     "киї": "Kyiv",
     "kiev": "Kyiv",
+
     "варшава": "Warsaw",
     "вар": "Warsaw",
     "warszawa": "Warsaw",
+
     "криків": "Krakow",
     "краків": "Krakow",
     "крак": "Krakow",
     "kraków": "Krakow",
+
     "lviv": "Lviv",
     "львів": "Lviv",
     "львов": "Lviv",
+
     "rzeszów": "Rzeszow",
     "ряшів": "Rzeszow",
     "ряш": "Rzeszow",
+
     "мюнхен": "Munich",
     "münchen": "Munich",
+
     "відень": "Vienna",
     "від": "Vienna",
-    "wien": "Vienna"
+    "wien": "Vienna",
+
+    // Kropyvnytskyi has a few common spellings, so I keep them here.
+    "kropyvnytskyi": "Kropyvnytskyi",
+    "kropyvnitsky": "Kropyvnytskyi",
+    "kropyvnytski": "Kropyvnytskyi",
+    "kropivnitski": "Kropyvnytskyi",
+    "kropivnitsky": "Kropyvnytskyi",
+    "kropivsnit": "Kropyvnytskyi",
+    "кропивницький": "Kropyvnytskyi",
+    "кіровоград": "Kropyvnytskyi",
+
+    // A few Ukrainian cities I want the search to understand better.
+    "odesa": "Odesa",
+    "odessa": "Odesa",
+    "одеса": "Odesa",
+
+    "dnipro": "Dnipro",
+    "дніпро": "Dnipro",
+
+    "kharkiv": "Kharkiv",
+    "харків": "Kharkiv",
+
+    "chernivtsi": "Chernivtsi",
+    "чернівці": "Chernivtsi",
+
+    // Tokyo/Tokio is a common spelling issue.
+    "tokyo": "Tokyo",
+    "tokio": "Tokyo",
+    "токіо": "Tokyo",
+    "токио": "Tokyo"
 };
+
 const COUNTRY_ALIASES = {
     "ukraine": "Ukraine",
     "україна": "Ukraine",
     "ua": "Ukraine",
+
     "poland": "Poland",
     "polska": "Poland",
     "польща": "Poland",
+
     "germany": "Germany",
     "deutschland": "Germany",
     "німеччина": "Germany",
+
     "austria": "Austria",
     "österreich": "Austria",
     "австрія": "Austria",
+
     "france": "France",
     "франція": "France",
+
     "spain": "Spain",
     "españa": "Spain",
     "іспанія": "Spain",
+
     "italy": "Italy",
     "італія": "Italy",
+
     "united states": "United States",
     "usa": "United States",
     "us": "United States",
-    "сша": "United States"
+    "сша": "United States",
+
+    "japan": "Japan",
+    "японія": "Japan",
+    "japonia": "Japan",
+    "jp": "Japan"
 };
+
 const COUNTRY_CODES = {
     Ukraine: "UA",
     Poland: "PL",
@@ -130,22 +177,29 @@ const COUNTRY_CODES = {
     France: "FR",
     Spain: "ES",
     Italy: "IT",
-    "United States": "US"
+    "United States": "US",
+    Japan: "JP"
 };
 
-// Default country for well-known cities — only used when user doesn't specify a country.
+// Default countries help when the city name is ambiguous.
 const CITY_DEFAULT_COUNTRIES = {
-    "Warsaw": "Poland",
-    "Kyiv": "Ukraine",
-    "Lviv": "Ukraine",
-    "Krakow": "Poland",
-    "Rzeszow": "Poland",
-    "Munich": "Germany",
-    "Vienna": "Austria",
-    "Crimea": "Ukraine"
+    Warsaw: "Poland",
+    Kyiv: "Ukraine",
+    Lviv: "Ukraine",
+    Krakow: "Poland",
+    Rzeszow: "Poland",
+    Munich: "Germany",
+    Vienna: "Austria",
+    Crimea: "Ukraine",
+    Kropyvnytskyi: "Ukraine",
+    Odesa: "Ukraine",
+    Dnipro: "Ukraine",
+    Kharkiv: "Ukraine",
+    Chernivtsi: "Ukraine",
+    Tokyo: "Japan"
 };
 
-// Small saved state, so refresh feels familiar.
+// App state
 let currentLanguage = localStorage.getItem("weatherAppLanguage") || "en";
 let lastLocation = null;
 let lastWeather = null;
@@ -159,9 +213,10 @@ let apiCooldownUntil = getSavedApiCooldown();
 let isWeatherLoading = false;
 let duckModeActive = false;
 let duckClickTimeout = null;
+
 const suggestionsCache = {};
 
-// Text content
+// UI text
 const translations = {
     en: {
         htmlLang: "en",
@@ -392,6 +447,7 @@ const translations = {
         }
     }
 };
+
 if (!translations[currentLanguage]) {
     currentLanguage = "en";
 }
@@ -400,7 +456,7 @@ if (currentLanguage === "quack") {
     currentLanguage = "en";
 }
 
-// Events
+// Initial render
 
 applyLanguage();
 renderFavorites();
@@ -475,14 +531,28 @@ cityInput.addEventListener("input", () => {
 
     const city = normalizeCityInput(cityInput.value);
 
-    if (city.length < 3) {
+    if (city.length < 1) {
         hideSuggestions();
+        return;
+    }
+
+    const localSuggestions = getLocalCitySuggestions(city);
+
+    if (localSuggestions.length > 0) {
+        renderCitySuggestions(localSuggestions);
+    }
+
+    if (city.length < 3) {
+        if (localSuggestions.length === 0) {
+            hideSuggestions();
+        }
+
         return;
     }
 
     suggestionsTimeout = setTimeout(() => {
         fetchCitySuggestions(city);
-    }, 700);
+    }, 400);
 });
 
 document.addEventListener("click", (event) => {
@@ -491,7 +561,7 @@ document.addEventListener("click", (event) => {
     }
 });
 
-// API
+// Weather requests
 
 async function searchWeatherByCity(city) {
     const trimmedCity = normalizeCityInput(city);
@@ -546,9 +616,9 @@ async function getCityLocation(city) {
     const parsedLocation = parseLocationInput(city);
     const searchQuery = getCitySearchQuery(parsedLocation.cityQuery);
 
-    // Explicit country typed by user always wins; default only fills the gap.
     let countryQuery = normalizeCountryQuery(parsedLocation.countryQuery);
 
+    // If the user typed a country, don't override it.
     if (!countryQuery) {
         countryQuery = getDefaultCountryForCity(searchQuery);
     }
@@ -599,7 +669,6 @@ async function getCityLocation(city) {
 async function getWeatherData(latitude, longitude) {
     const currentValues = "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,pressure_msl,weather_code,is_day";
     const dailyValues = "weather_code,temperature_2m_max,temperature_2m_min";
-    // Current weather and forecast come from the same request.
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=${currentValues}&daily=${dailyValues}&forecast_days=5&timezone=auto`;
 
     try {
@@ -651,13 +720,12 @@ async function searchWeatherByCoordinates(latitude, longitude, displayName) {
     saveCachedWeather(location, weatherData.current, weatherData.daily, false);
 }
 
-// Rendering
+// Main UI states
 
 function showLoading() {
     currentWeatherState = "loading";
     searchButton.disabled = true;
     setWeatherBackground();
-    setUserTimeBackground();
 
     cityNameElement.textContent = getText().loadingCity;
     dateElement.textContent = "";
@@ -678,7 +746,6 @@ function showError(message) {
     currentCity = null;
     searchButton.disabled = false;
     setWeatherBackground();
-    setUserTimeBackground();
 
     cityNameElement.textContent = getText().weatherUnavailable;
     dateElement.textContent = "";
@@ -706,6 +773,7 @@ function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
     lastCanSaveCity = canSaveCity;
     currentWeatherState = "weather";
     searchButton.disabled = false;
+
     currentCity = canSaveCity ? {
         name: location.name,
         country: location.country,
@@ -721,9 +789,7 @@ function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
         day: "numeric"
     });
 
-    // Weather card shows the searched city's local time.
     localTimeElement.textContent = getLocalTimeText(weather.time);
-
     temperatureElement.textContent = `${Math.round(weather.temperature_2m)}°C`;
     descriptionElement.textContent = weatherDescription;
     feelsLikeElement.textContent = `${Math.round(weather.apparent_temperature)}°C`;
@@ -731,16 +797,10 @@ function renderWeather(location, weather, dailyForecast, canSaveCity = true) {
     windSpeedElement.textContent = `${Math.round(weather.wind_speed_10m)} km/h`;
     pressureElement.textContent = `${Math.round(weather.pressure_msl)} hPa`;
 
-    // Weather icon uses the searched city's is_day from API.
     weatherIconElement.src = getWeatherIcon(weather.weather_code, isNight, weather.wind_speed_10m);
     weatherIconElement.alt = weatherDescription;
 
-    // Decorative background mood follows the user's browser/local time.
-    const isUserNight = isUserNightTime();
-
-    setWeatherBackground(weather.weather_code, isUserNight, weather.wind_speed_10m);
-    setUserTimeBackground();
-
+    setWeatherBackground(weather.weather_code, isNight, weather.wind_speed_10m);
     renderForecast(dailyForecast);
     updateFavoriteButton();
 }
@@ -771,7 +831,67 @@ function getCitySearchQuery(city) {
     const normalizedCity = normalizeCityInput(city);
     const cityKey = normalizedCity.toLowerCase();
 
-    return CITY_ALIASES[cityKey] || normalizedCity;
+    if (CITY_ALIASES[cityKey]) {
+        return CITY_ALIASES[cityKey];
+    }
+
+    const fuzzyMatch = getClosestCityAlias(cityKey);
+
+    if (fuzzyMatch) {
+        return fuzzyMatch;
+    }
+
+    return normalizedCity;
+}
+
+// Tiny typo helper for city names.
+function levenshtein(a, b) {
+    const m = a.length;
+    const n = b.length;
+    const dp = Array.from({ length: m + 1 }, (_, i) => [i]);
+
+    for (let j = 0; j <= n; j++) {
+        dp[0][j] = j;
+    }
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            dp[i][j] = a[i - 1] === b[j - 1]
+                ? dp[i - 1][j - 1]
+                : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+    }
+
+    return dp[m][n];
+}
+
+function getClosestCityAlias(input) {
+    if (input.length < 5) {
+        return "";
+    }
+
+    const maxDistance = input.length <= 8 ? 2 : 3;
+    let bestKey = "";
+    let bestDist = Infinity;
+
+    for (const key of Object.keys(CITY_ALIASES)) {
+        if (Math.abs(key.length - input.length) > maxDistance) {
+            continue;
+        }
+
+        const dist = levenshtein(input, key);
+
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestKey = key;
+        }
+    }
+
+    if (bestDist <= maxDistance) {
+        return CITY_ALIASES[bestKey];
+    }
+
+    return "";
 }
 
 function normalizeCountryQuery(country) {
@@ -785,7 +905,6 @@ function getCountryCode(country) {
     return COUNTRY_CODES[country] || "";
 }
 
-// Returns a default country for a known city when the user didn't type one.
 function getDefaultCountryForCity(cityQuery) {
     return CITY_DEFAULT_COUNTRIES[cityQuery] || "";
 }
@@ -817,7 +936,6 @@ function getBestCityMatch(results, cityQuery, countryQuery = "") {
             return city.country === normalizedCountryQuery || city.country_code === countryCode;
         });
 
-        // If the country filter yields nothing, don't silently fall back to another country.
         if (filteredResults.length === 0) {
             throw new Error(getText().errors.cityNotFound);
         }
@@ -975,52 +1093,7 @@ function setWeatherBackground(weatherCode = null, isNight = false, windSpeed = 0
     }
 
     document.body.classList.add(backgroundClass);
-}
-
-// Applies a time-of-day class based on the user's local browser time.
-function setUserTimeBackground() {
-    setTimeOfDayBackground(new Date());
-}
-
-// Returns true if the user's local time is considered night (21:00–04:59).
-function isUserNightTime() {
-    const hour = new Date().getHours();
-
-    return hour >= 21 || hour < 5;
-}
-
-// Accepts a Date object, a date/time string, or undefined (falls back to now).
-function setTimeOfDayBackground(timeValue) {
-    document.body.classList.remove(...TIME_BACKGROUND_CLASSES);
-
-    let date;
-
-    if (timeValue instanceof Date) {
-        date = timeValue;
-    } else if (timeValue) {
-        date = new Date(timeValue);
-    } else {
-        date = new Date();
-    }
-
-    if (Number.isNaN(date.getTime())) {
-        date = new Date();
-    }
-
-    const hour = date.getHours();
-    let timeClass = "time-day";
-
-    if (hour >= 5 && hour < 10) {
-        timeClass = "time-morning";
-    } else if (hour >= 10 && hour < 17) {
-        timeClass = "time-day";
-    } else if (hour >= 17 && hour < 21) {
-        timeClass = "time-evening";
-    } else {
-        timeClass = "time-night";
-    }
-
-    document.body.classList.add(timeClass);
+    document.body.classList.toggle("is-night", isNight);
 }
 
 function getSavedApiCooldown() {
@@ -1209,7 +1282,6 @@ function getCurrentPosition() {
     });
 }
 
-
 function applyLanguage() {
     const text = getText();
 
@@ -1268,7 +1340,6 @@ function changeLanguage(language) {
 
     applyLanguage();
 
-    // Dates and descriptions need the new language too.
     if (lastLocation && lastWeather) {
         renderWeather(lastLocation, lastWeather, lastDailyForecast, lastCanSaveCity);
     } else if (currentWeatherState === "loading") {
@@ -1494,7 +1565,6 @@ function addRecentSearch(city) {
         return;
     }
 
-    // Keep the newest search on top.
     const recentSearches = getRecentSearches().filter((recentCity) => {
         return recentCity.name !== city.name || recentCity.country !== city.country;
     });
@@ -1536,7 +1606,9 @@ function updateFavoriteButton() {
         return;
     }
 
-    const isFavorite = getFavorites().some((city) => city.name === currentCity.name);
+    const isFavorite = getFavorites().some((city) => {
+        return city.name === currentCity.name && city.country === currentCity.country;
+    });
 
     favoriteButton.disabled = false;
     favoriteButton.textContent = isFavorite ? getText().savedCity : getText().saveCity;
@@ -1554,18 +1626,57 @@ function getLocationLabel(location) {
     return getCityLabel(location);
 }
 
+function getLocalCitySuggestions(input) {
+    const normalized = normalizeCityInput(input).toLowerCase();
+
+    if (normalized.length < 1) {
+        return [];
+    }
+
+    const seen = new Set();
+    const results = [];
+
+    for (const [key, cityName] of Object.entries(CITY_ALIASES)) {
+        if (key.startsWith(normalized) || (normalized.length >= 3 && key.includes(normalized))) {
+            if (!seen.has(cityName)) {
+                seen.add(cityName);
+                results.push({
+                    name: cityName,
+                    country: CITY_DEFAULT_COUNTRIES[cityName] || "",
+                    admin1: ""
+                });
+            }
+        }
+
+        if (results.length >= 5) {
+            break;
+        }
+    }
+
+    for (const [cityName, country] of Object.entries(CITY_DEFAULT_COUNTRIES)) {
+        if (results.length >= 5) {
+            break;
+        }
+
+        if (cityName.toLowerCase().startsWith(normalized) && !seen.has(cityName)) {
+            seen.add(cityName);
+            results.push({ name: cityName, country, admin1: "" });
+        }
+    }
+
+    return results;
+}
+
 async function fetchCitySuggestions(city) {
     const normalizedCity = normalizeCityInput(city);
 
     if (normalizedCity.length < 3) {
-        hideSuggestions();
         return;
     }
 
     const parsedLocation = parseLocationInput(normalizedCity);
     const searchQuery = getCitySearchQuery(parsedLocation.cityQuery);
 
-    // Same country bias logic as getCityLocation — explicit country wins, default fills the gap.
     let countryQuery = normalizeCountryQuery(parsedLocation.countryQuery);
 
     if (!countryQuery) {
@@ -1576,7 +1687,6 @@ async function fetchCitySuggestions(city) {
     const query = `${language}:${searchQuery.toLowerCase()}:${countryQuery.toLowerCase()}`;
 
     if (searchQuery === "") {
-        hideSuggestions();
         return;
     }
 
@@ -1585,8 +1695,10 @@ async function fetchCitySuggestions(city) {
         return;
     }
 
+    const localSuggestions = getLocalCitySuggestions(normalizedCity);
+
     if (suggestionsCache[query]) {
-        renderCitySuggestions(suggestionsCache[query]);
+        renderCitySuggestions(mergeSuggestions(localSuggestions, suggestionsCache[query]));
         return;
     }
 
@@ -1607,10 +1719,10 @@ async function fetchCitySuggestions(city) {
         }
 
         const data = await response.json();
-        const suggestions = data.results || [];
+        const apiSuggestions = data.results || [];
 
-        suggestionsCache[query] = suggestions;
-        renderCitySuggestions(suggestions);
+        suggestionsCache[query] = apiSuggestions;
+        renderCitySuggestions(mergeSuggestions(localSuggestions, apiSuggestions));
     } catch (error) {
         if (isNetworkError(error)) {
             startApiCooldown();
@@ -1618,6 +1730,22 @@ async function fetchCitySuggestions(city) {
 
         hideSuggestions();
     }
+}
+
+function mergeSuggestions(local, api) {
+    const seen = new Set(local.map((city) => `${city.name}|${city.country}`));
+    const merged = [...local];
+
+    for (const city of api) {
+        const key = `${city.name}|${city.country}`;
+
+        if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(city);
+        }
+    }
+
+    return merged;
 }
 
 function renderCitySuggestions(cities) {
@@ -1644,8 +1772,10 @@ function renderCitySuggestions(cities) {
 
         cityButton.append(cityName, cityMeta);
         cityButton.addEventListener("click", () => {
-            cityInput.value = city.name;
-            searchWeatherByCity(city.name);
+            const label = getCityLabel(city);
+
+            cityInput.value = label;
+            searchWeatherByCity(label);
         });
 
         cityItem.append(cityButton);
@@ -1668,7 +1798,7 @@ function setDefaultWeatherText() {
     currentCity = null;
     searchButton.disabled = false;
     setWeatherBackground();
-    setUserTimeBackground();
+
     cityNameElement.textContent = text.defaultCity;
     dateElement.textContent = text.defaultDate;
     localTimeElement.textContent = getLocalTimeText();
@@ -1680,6 +1810,7 @@ function setDefaultWeatherText() {
     pressureElement.textContent = "-- hPa";
     weatherIconElement.src = `${WEATHER_ICON_PATH}partly-cloudy.svg`;
     weatherIconElement.alt = text.defaultDescription;
+
     setDefaultForecast();
     updateFavoriteButton();
 }
@@ -1690,7 +1821,6 @@ function renderForecast(dailyForecast) {
         return;
     }
 
-    // The cards stay in HTML; JS only fills in fresh data.
     for (let i = 0; i < forecastCards.length; i++) {
         const weatherCode = dailyForecast.weather_code[i];
         const date = dailyForecast.time[i] || getFutureDate(i);
@@ -1758,7 +1888,6 @@ function getForecastDateObject(dateValue) {
         return dateValue;
     }
 
-    // Noon keeps parsed API dates from slipping a day.
     return new Date(`${dateValue}T12:00:00`);
 }
 
