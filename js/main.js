@@ -99,7 +99,7 @@ const translations = {
             cityNotLoaded: "Could not find this city. Please try again.",
             cityNotFound: "City not found. Please check the spelling.",
             weatherNotLoaded: "Could not load weather data. Please try again.",
-            requestTimeout: "This request is taking too long. Please try again."
+            networkError: "Network error. Please check your connection and try again."
         },
         weatherDescriptions: {
             clearSky: "Clear sky",
@@ -152,7 +152,7 @@ const translations = {
             cityNotLoaded: "Nie udało się znaleźć tego miasta. Spróbuj ponownie.",
             cityNotFound: "Nie znaleziono miasta. Sprawdź pisownię.",
             weatherNotLoaded: "Nie udało się pobrać pogody. Spróbuj ponownie.",
-            requestTimeout: "To zapytanie trwa zbyt długo. Spróbuj ponownie."
+            networkError: "Błąd sieci. Sprawdź połączenie i spróbuj ponownie."
         },
         weatherDescriptions: {
             clearSky: "Bezchmurnie",
@@ -205,7 +205,7 @@ const translations = {
             cityNotLoaded: "Не вдалося знайти це місто. Спробуй ще раз.",
             cityNotFound: "Місто не знайдено. Перевір написання.",
             weatherNotLoaded: "Не вдалося завантажити погоду. Спробуй ще раз.",
-            requestTimeout: "Цей запит триває занадто довго. Спробуй ще раз."
+            networkError: "Помилка мережі. Перевір підключення та спробуй ще раз."
         },
         weatherDescriptions: {
             clearSky: "Ясно",
@@ -297,29 +297,6 @@ document.addEventListener("click", (event) => {
 
 // API functions
 
-async function fetchWithTimeout(url, timeout = 10000) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-        controller.abort();
-    }, timeout);
-
-    try {
-        const response = await fetch(url, {
-            signal: controller.signal
-        });
-
-        return response;
-    } catch (error) {
-        if (error.name === "AbortError") {
-            throw new Error(getText().errors.requestTimeout);
-        }
-
-        throw error;
-    } finally {
-        clearTimeout(timeoutId);
-    }
-}
-
 async function searchWeatherByCity(city) {
     const trimmedCity = city.trim();
     const requestId = getNextWeatherRequestId();
@@ -355,19 +332,29 @@ async function searchWeatherByCity(city) {
 async function getCityLocation(city) {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`;
 
-    const response = await fetchWithTimeout(url);
+    try {
+        const response = await fetch(url);
 
-    if (!response.ok) {
-        throw new Error(getText().errors.cityNotLoaded);
+        if (!response.ok) {
+            throw new Error(getText().errors.cityNotLoaded);
+        }
+
+        const data = await response.json();
+
+        if (!data.results || data.results.length === 0) {
+            throw new Error(getText().errors.cityNotFound);
+        }
+
+        return data.results[0];
+    } catch (error) {
+        console.error("Weather API error:", error);
+
+        if (isNetworkError(error)) {
+            throw new Error(getText().errors.networkError);
+        }
+
+        throw error;
     }
-
-    const data = await response.json();
-
-    if (!data.results || data.results.length === 0) {
-        throw new Error(getText().errors.cityNotFound);
-    }
-
-    return data.results[0];
 }
 
 async function getWeatherData(latitude, longitude) {
@@ -376,18 +363,28 @@ async function getWeatherData(latitude, longitude) {
     // One API call gives current weather and the 5 day forecast.
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=${currentValues}&daily=${dailyValues}&forecast_days=5&timezone=auto`;
 
-    const response = await fetchWithTimeout(url);
+    try {
+        const response = await fetch(url);
 
-    if (!response.ok) {
-        throw new Error(getText().errors.weatherNotLoaded);
+        if (!response.ok) {
+            throw new Error(getText().errors.weatherNotLoaded);
+        }
+
+        const data = await response.json();
+
+        return {
+            current: data.current,
+            daily: data.daily
+        };
+    } catch (error) {
+        console.error("Weather API error:", error);
+
+        if (isNetworkError(error)) {
+            throw new Error(getText().errors.networkError);
+        }
+
+        throw error;
     }
-
-    const data = await response.json();
-
-    return {
-        current: data.current,
-        daily: data.daily
-    };
 }
 
 async function searchWeatherByCoordinates(latitude, longitude, displayName) {
@@ -494,6 +491,10 @@ function getText() {
     return translations[currentLanguage];
 }
 
+function isNetworkError(error) {
+    return error instanceof TypeError || error.message === "Failed to fetch";
+}
+
 function applyTheme(theme) {
     if (theme === "dark") {
         document.body.classList.add("dark-theme");
@@ -522,7 +523,7 @@ async function getLocationByCoordinates(latitude, longitude, fallbackName) {
     const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=${getReverseGeocodeLanguage()}`;
 
     try {
-        const response = await fetchWithTimeout(url);
+        const response = await fetch(url);
 
         if (!response.ok) {
             throw new Error(getText().errors.cityNotLoaded);
@@ -543,6 +544,8 @@ async function getLocationByCoordinates(latitude, longitude, fallbackName) {
             longitude
         };
     } catch (error) {
+        console.error("Weather API error:", error);
+
         return {
             name: fallbackName || getText().yourLocation,
             country: "",
@@ -883,7 +886,7 @@ async function fetchCitySuggestions(city) {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=5`;
 
     try {
-        const response = await fetchWithTimeout(url);
+        const response = await fetch(url);
 
         if (!response.ok) {
             hideSuggestions();
@@ -893,6 +896,8 @@ async function fetchCitySuggestions(city) {
         const data = await response.json();
         renderCitySuggestions(data.results || []);
     } catch (error) {
+        console.error("Weather API error:", error);
+
         hideSuggestions();
     }
 }
