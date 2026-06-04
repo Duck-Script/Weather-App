@@ -1,53 +1,49 @@
 # Weather App
 
-A simple weather application that allows users to search for a city and view current weather information.
+A responsive weather application built with HTML, CSS, and JavaScript.
 
-The main goal was to improve my skills in JavaScript, working with APIs, DOM manipulation, user input handling, and creating a clean responsive interface.
+Working with an API, rendering dynamic data, handling user input, saving data locally, and building a clean UI that feels close to a real small product.
 
 ## Live Demo
 
 -- In development --
 
-## Screenshots 
+## Screenshots
 
-Light theme and dark theme
+### Light Theme
 
-![Weather App Screenshot](./assets/screenshot-lighttheme.png)
+![Weather App Light Theme](./assets/screenshots/screenshot-lighttheme-v1.png)
 
-##
+### Dark Theme
 
-![Weather App Screenshot](./assets/screenshot-darktheme.png)
+![Weather App Dark Theme](./assets/screenshots/screenshot-darktheme-v1.png)
 
 ## Features
 
 - Search weather by city name
-- Display current temperature
-- Show weather condition
-- Show humidity
-- Show wind speed
-- Get dynamic weather data from an API
-- Responsive design for different screen sizes
-- Clean and simple user interface
+- Current weather data from API
+- 5-day forecast
+- Dynamic weather icons
+- Light and dark theme
+- Theme saved in localStorage
+- Browser theme detection
+- Favorite cities panel
+- Recent searches history
+- City autocomplete suggestions
+- Multi-language UI
+- Geolocation-based startup weather
+- Loading and error states
+- Responsive glassmorphism interface
 
 ## Technologies Used
 
-- HTML
-- CSS
+- HTML5
+- CSS3
 - JavaScript
-- Weather API
+- Open-Meteo API
+- LocalStorage
 - Git
 - GitHub
-
-## What I Practiced
-
-- Working with an external API
-- Using `fetch()` to get data
-- Handling user input
-- Working with weather data
-- Basic error handling
-- Creating a responsive layout
-- Organizing project files
-- Using Git and GitHub for version control
 
 ## How to Run Locally
 
@@ -63,23 +59,23 @@ git clone https://github.com/Plogramist/Weather-App.git
 cd Weather-App
 ```
 
-3. Open `index.html` in your browser.
+3. Open `main.html` in your browser.
 
 ## Project Status
 
-The basic version of the project is in development.
+The project is still in development, but the main functionality is already working.
 
-In the future, I may improve it by adding:
+Next improvements I may add:
 
-- Better error messages
-- Loading state
-- Dark / light theme
-- 5-day forecast
-- Saving recent searches
-- Better UI animations
+- More polished mobile layout
+- Better accessibility
+- Dynamic weather-based background
+- More detailed weather metrics
+- Small UI animations
+- Final README and deployment polish
 
 ## Author
 
-Created by **Plogramist**  
+Created by **Duck-Script**
 
-GitHub: [@Plogramist](https://github.com/Plogramist)
+GitHub: [@Duck-Script](https://github.com/Duck-Script)
